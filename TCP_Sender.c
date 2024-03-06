@@ -15,7 +15,7 @@
 #define PORT 12345
 #define FILE_SIZE_MB 3
 #define FILE_NAME "random_file.txt"
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 8192
 
 /*
     * @brief Create a file with random data.
@@ -65,7 +65,13 @@ FILE* createRandomCharFile(const char* fileName, size_t fileSizeInMB) {
  * @param argv The command-line arguments ( 1-2 ip address, 3-4 port, 5-6 congestion control algorithm).
  * @return 0 if the client runs successfully, 1 otherwise.
 */
-int main( int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
+    // Check if the correct number of command-line arguments is provided
+    if (argc != 7) {
+        fprintf(stderr, "Usage: %s <executable> <server_ip> <server_port> <congestion_control_algorithm>\n", argv[0]);
+        return 1;
+    }
+
 
     printf("TCP Sender...\n");
 
@@ -92,10 +98,10 @@ int main( int argc, char *argv[]) {
 
     // Try to create a TCP socket (IPv4, stream-based, default protocol).
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0)
+    if (sockfd < 0){
         perror("Error opening socket");
         return 1;
-
+    }
 
 
     printf("Setting server details...\n");
@@ -104,9 +110,18 @@ int main( int argc, char *argv[]) {
     struct sockaddr_in serv_addr;
     // The memset() function is used to fill a block of memory with a particular value. (in this case to reset the serv_addr structure to 0)
     memset(&serv_addr, '0', sizeof(serv_addr));
+
+    // Validate and convert port from command line
+    int port = atoi(argv[4]);
+    if (port <= 0 || port > 65535) {
+        fprintf(stderr, "Invalid port number\n");
+        close(sockfd);
+        return 1;
+    }
+
     // Store the server details in the serv_addr structure.
     serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(argv[4]);
+    serv_addr.sin_port = htons(port);
 
 
 
@@ -114,20 +129,22 @@ int main( int argc, char *argv[]) {
 
     // Convert the server's address from text to binary form and store it in the server structure.
     // This should not fail if the address is valid.
-    if (inet_pton(AF_INET, Server_IP, &serv_addr.sin_addr) <= 0)
+    if (inet_pton(AF_INET, Server_IP, &serv_addr.sin_addr) <= 0){
         perror("Invalid address/ Address not supported");
         close(sockfd);
         return 1;
+    }
 
 
 
     printf("Connecting to server...\n");
 
     // Connect to server
-    if (connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
+    if (connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0){
         perror("Connection Failed");
         close(sockfd);
         return 1;
+    }
 
 
 
@@ -169,9 +186,9 @@ int main( int argc, char *argv[]) {
 
         // Send file content using chunks of 1024 bytes at a time until the end of the file is reached. 
         // wait for the receiver to acknowledge the receipt of the segment before sending the next segment. 
-        while ((n = fread(buffer, 1, sizeof(buffer), file)) > 0)
+        while ((n = fread(buffer, 1, sizeof(buffer), file)) > 0){
             write(sockfd, buffer, n);
-            
+    }
 
         printf("Do you want to send the file content again? (y/n): ");
         scanf(" %c", &choice);
@@ -196,5 +213,3 @@ int main( int argc, char *argv[]) {
 
 
 
-// TODO: Add the following to the Makefile
-// TODO: make sure the argv[] are received correctly (port Ip address and congestion control algorithm)

@@ -13,7 +13,7 @@
 #include <arpa/inet.h>
 
 #define MAXCLIENTS 1
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 8192
 
 // LinkedList to store the time taken to receive the file and the file size each time
 typedef struct Node {
@@ -80,6 +80,24 @@ size_t getTimeTakenIndex(LinkedList *list, double timeTaken) {
     return -1;
 }
 
+// Set the file size at the given index
+void setFileSize(LinkedList *list, size_t index, size_t fileSize) {
+    Node *current = list->head;
+    for (size_t i = 0; i < index; i++) {
+        current = current->next;
+    }
+    current->fileSize = fileSize;
+}
+
+// Set the time taken at the given index
+void setTimeTaken(LinkedList *list, size_t index, double timeTaken) {
+    Node *current = list->head;
+    for (size_t i = 0; i < index; i++) {
+        current = current->next;
+    }
+    current->timeTaken = timeTaken;
+}
+
 // Function to calculate the average time taken to receive the file
 double averageTime(LinkedList *list) {
     double sum = 0;
@@ -114,11 +132,40 @@ void freeList(LinkedList *list) {
 }
 
 
+/*
 
+*/
+void printStatistics(LinkedList *list) {
+    printf("----------------------------------\n");
+    printf("- * Statistics * -\n");
+
+    Node *current = list->head;
+    size_t runNumber = 1;
+
+    while (current != NULL) {
+        printf("- Run #%zu Data: Time=%.2fms; Speed=%.2fMB/s\n",
+               runNumber, current->timeTaken, (current->fileSize / current->timeTaken) * 1000 / (1024 * 1024));
+        current = current->next;
+        runNumber++;
+    }
+
+    // Calculate and print averages
+    double avgTime = averageTime(list);
+    double avgBandwidth = averageBandwidth(list);
+
+    printf("- Average time: %.2fms\n", avgTime);
+    printf("- Average bandwidth: %.2fMB/s\n", avgBandwidth);
+    printf("----------------------------------\n");
+}
 
 
 
 int main(int argc, char *argv[]) {
+    // Check if the correct number of command-line arguments is provided
+    if (argc != 5) {
+        fprintf(stderr, "Usage: %s <port>\n", argv[0]);
+        return 1;
+    }
 
     printf("TCP Receiver...\n");
 
@@ -126,7 +173,7 @@ int main(int argc, char *argv[]) {
     int sockfd = -1;                            // Socket file descriptor
     struct sockaddr_in server, client;          // Server address structure to store the client and server addresses
     socklen_t clientAddrLen = sizeof(client);   // Client address length
-    struct timeList *list = newLinkedList();    // Linked list to store the time taken to receive the file and the file size each time
+    struct LinkedList *list = newLinkedList();  // Linked list to store the time taken to receive the file and the file size each time
 
     // Reset the server and client address structures to 0
     memset(&server, 0, sizeof(server));
@@ -196,7 +243,7 @@ int main(int argc, char *argv[]) {
     printf("Client connected from %s:%d\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
 
     // Step 3: Receive the file size
-    ssize_t bytesRead = recv(clientSock, &fileSize, sizeof(fileSize), 0);
+    size_t bytesRead = recv(clientSock, &fileSize, sizeof(fileSize), 0);
 
     if (bytesRead != sizeof(fileSize)) {
         perror("Error receiving file size");
@@ -205,7 +252,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    printf("File size received: %zu bytes.\n", fileSize);
+    printf("File size received: %zu bytes.\n", fileSize);    
 
     // Step 3 (Continued): Receive the file and measure the time
     clock_t start_time, end_time;
@@ -263,24 +310,17 @@ int main(int argc, char *argv[]) {
     }
 
     // Step 5: Print out the times and average bandwidth
-    printf("----------------------------------\n");
-    printf("- * Statistics * -\n");
-    printf("- Run #1 Data: Time=%.2fms; Speed=%.2fMB/s\n", time_taken, (fileSize / time_taken) * 1000 / (1024 * 1024));
-    printf("-\n");
-    printf("- Average time: %.2fms\n", time_taken);
-    printf("- Average bandwidth: %.2fMB/s\n", (fileSize / time_taken) * 1000 / (1024 * 1024));
-    printf("----------------------------------\n");
+    printStatistics(list);
 
     // (Steps 6 and 7 are not applicable in this implementation)
 
     close(sockfd);
+    freeList(list);
 
     return 0;
 }
 
 
 
-//TODO: add linked list to store the time taken to receive the file each time
 //TODO: Add specific congestion control algorithm determined by the argv[4]
-//TODO: in the printing erea add the average time taken to receive the file and the average bandwidth of the file and print all the times spartly 
 //TODO:
