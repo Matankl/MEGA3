@@ -13,9 +13,8 @@
 #include <arpa/inet.h>
 
 #define PORT 12345
-#define FILE_SIZE_MB 3
-#define FILE_NAME "random_file.txt"
-#define BUFFER_SIZE 8192
+#define FILE_SIZE_MB 2
+#define BUFFER_SIZE 65536
 
 /*
     * @brief Create a file with random data.
@@ -24,37 +23,25 @@
     * @return A pointer to the created file.
     
 */
-FILE* createRandomCharFile(const char* fileName, size_t fileSizeInMB) {
-    // Open the file for writing, create it if it doesn't exist, truncate it if it does
-    FILE* file = fopen(fileName, "wb");
-    
-    if (file == NULL) {
-        perror("Error opening file");
-        exit(1);
-    }
-
-    // Seed for random data
-    srand(time(NULL));
-
-    // Write random data to the file
-    char buffer[BUFFER_SIZE];
-    size_t remainingBytes = fileSizeInMB * 1024 * 1024;
-
-    while (remainingBytes > 0) {
-        size_t charsToWrite = sizeof(buffer) < remainingBytes ? sizeof(buffer) : remainingBytes;
-
-          for (size_t i = 0; i < charsToWrite; ++i) {
-            buffer[i] = 'A' + rand() % 26;  // Generate a random uppercase letter
-        }
-
-        fwrite(buffer, 1, charsToWrite, file);
-
-        remainingBytes -= charsToWrite;
-    }
-
-    fclose(file);
-
-    return file;
+/*
+* @brief A random data generator function based on srand() and rand().
+* @param size The size of the data to generate (up to 2^32 bytes).
+* @return A pointer to the buffer.
+*/
+char *util_generate_random_data(unsigned int size) {
+ char *buffer = NULL;
+ // Argument check.
+ if (size == 0)
+ return NULL;
+ buffer = (char *)calloc(size, sizeof(char));
+ // Error checking.
+ if (buffer == NULL)
+ return NULL;
+ // Randomize the seed of the random number generator.
+ srand(time(NULL));
+ for (unsigned int i = 0; i < size; i++)
+ *(buffer + i) = ((unsigned int)rand() % 256);
+ return buffer;
 }
 
 
@@ -66,27 +53,18 @@ FILE* createRandomCharFile(const char* fileName, size_t fileSizeInMB) {
  * @return 0 if the client runs successfully, 1 otherwise.
 */
 int main(int argc, char *argv[]) {
-    // Check if the correct number of command-line arguments is provided
-    if (argc != 7) {
-        fprintf(stderr, "Usage: %s <executable> <server_ip> <server_port> <congestion_control_algorithm>\n", argv[0]);
-        return 1;
-    }
-
 
     printf("TCP Sender...\n");
 
     //Variables
     int sockfd = -1;
     char* Server_IP = argv[2];
-    char buffer[1024];
-    FILE *file;
-
-
+    char *Message;
 
     printf("Creating file with random data...\n");
 
     // Create a file with random data
-    file = createRandomCharFile(FILE_NAME, FILE_SIZE_MB);
+    Message = util_generate_random_data(FILE_SIZE_MB *1024 * 1024);
 
 
 
@@ -167,31 +145,36 @@ int main(int argc, char *argv[]) {
 
     // Loop to send the file content agin if the user wants to send the file content again (enter y = yes, n = no)
     char choice = 'y';          // User's choice
-    int n;                      // Number of bytes read from the file
+    //int n;                      // Number of bytes read from the file
 
+        size_t fileSize = FILE_SIZE_MB * 1024 * 1024;
     do
     {
         printf("Sending file size...\n");
 
-        // Send file size first so the reciver knows how much data to expect
-        // The fseek() function is used to move the file pointer to a specified position. In this case, it moves the file pointer to the end of the file.
-        fseek(file, 0, SEEK_END);
-        long fileSize = ftell(file);
-        rewind(file);
+        
         // The write() function is used to write data to a file descriptor. In this case, it writes the file size to the socket.
         write(sockfd, &fileSize, sizeof(fileSize));
+        //claen the buffer of the socket
 
 
         printf("Sending file content...\n");
 
-        // Send file content using chunks of 1024 bytes at a time until the end of the file is reached. 
-        // wait for the receiver to acknowledge the receipt of the segment before sending the next segment. 
-        while ((n = fread(buffer, 1, sizeof(buffer), file)) > 0){
-            write(sockfd, buffer, n);
+
+    // Loop to send the string in chunks
+    for (size_t i = 0; i < fileSize; i += BUFFER_SIZE) {
+        // Calculate the remaining characters to send in this iteration
+        size_t remaining = fileSize - i;
+        // Determine the size to send in this iteration (up to BUFFER_SIZE)
+        size_t chunkSize = (remaining < BUFFER_SIZE) ? remaining : BUFFER_SIZE;
+
+        // Write the current chunk to the socket
+        write(sockfd, Message + i, chunkSize);
     }
 
         printf("Do you want to send the file content again? (y/n): ");
         scanf(" %c", &choice);
+        while (getchar() != '\n'); // Clear the input buffer
     } while (choice == 'y' || choice == 'Y');
 
 
@@ -203,13 +186,8 @@ int main(int argc, char *argv[]) {
 
     // Close the file and the socket
     printf("Closing file and socket...\n");
-    fclose(file);
+    // fclose(file);
     close(sockfd);
 
     return 0;
 }
-
-
-
-
-

@@ -13,7 +13,7 @@
 #include <arpa/inet.h>
 
 #define MAXCLIENTS 1
-#define BUFFER_SIZE 8192
+#define BUFFER_SIZE 65536
 
 // LinkedList to store the time taken to receive the file and the file size each time
 typedef struct Node {
@@ -161,13 +161,8 @@ void printStatistics(LinkedList *list) {
 
 
 int main(int argc, char *argv[]) {
-    // Check if the correct number of command-line arguments is provided
-    if (argc != 5) {
-        fprintf(stderr, "Usage: %s <port>\n", argv[0]);
-        return 1;
-    }
-
     printf("TCP Receiver...\n");
+
 
     // Variables
     int sockfd = -1;                            // Socket file descriptor
@@ -205,7 +200,7 @@ int main(int argc, char *argv[]) {
     // Set the servers details
     server.sin_family = AF_INET; // Set the address family to AF_INET (IPv4)
     server.sin_addr.s_addr = INADDR_ANY; // Set the server's IP address to the local IP address
-    server.sin_port = htons(atoi(argv[1])); // Set the server's port number to the port number passed as an argument
+    server.sin_port = htons(atoi(argv[2])); // Set the server's port number to the port number passed as an argument
 
     printf("Binding socket to server's address...\n");
 
@@ -225,12 +220,11 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    printf("Server is listening to incoming connections on port %d...\n", atoi(argv[1]));
+    printf("Server is listening to incoming connections on port %d...\n", atoi(argv[2]));
     printf("Accepting incoming connection...\n");
 
     size_t fileSize;
 
-    while (1) {
     // Accept the incoming connection
     int clientSock = accept(sockfd, (struct sockaddr *)&client, &clientAddrLen);
 
@@ -243,7 +237,9 @@ int main(int argc, char *argv[]) {
     printf("Client connected from %s:%d\n", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
 
     // Step 3: Receive the file size
-    size_t bytesRead = recv(clientSock, &fileSize, sizeof(fileSize), 0);
+    size_t bytesRead;
+    bytesRead = recv(clientSock, &fileSize, sizeof(fileSize), 0);
+    printf("Bytes received: %zu\n", bytesRead);
 
     if (bytesRead != sizeof(fileSize)) {
         perror("Error receiving file size");
@@ -252,19 +248,27 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    printf("File size received: %zu bytes.\n", fileSize);    
 
+    while (1) {
+    printf("File size received: %zu bytes.\n", fileSize);    
+    
     // Step 3 (Continued): Receive the file and measure the time
     clock_t start_time, end_time;
     double time_taken;
 
-    char buffer[BUFFER_SIZE];
+   char buffer[BUFFER_SIZE];
     size_t totalBytesReceived = 0;
+
+    // Receive the file and measure the time
+    printf("Receiving file...\n");
+    printf("Starting timer...\n");
 
     start_time = clock();
 
-    while (totalBytesReceived < fileSize) {
+    while ((totalBytesReceived < fileSize)){
+        //recive data
         bytesRead = recv(clientSock, buffer, sizeof(buffer), 0);
+        printf("Bytes received: %zu\n", bytesRead);
 
         if (bytesRead <= 0) {
             perror("Error receiving file data");
@@ -274,26 +278,27 @@ int main(int argc, char *argv[]) {
         }
 
         totalBytesReceived += bytesRead;
+        printf("Total bytes received: %zu\n", totalBytesReceived);
     }
 
+    //file received so we stop the timer
+    printf("File received. Stopping timer...\n");
     end_time = clock();
+
     time_taken = ((double)(end_time - start_time)) / CLOCKS_PER_SEC * 1000; // Convert to milliseconds
     addNode(list, fileSize, time_taken);
 
     printf("File received in %.2f milliseconds.\n", time_taken);
-        // Step 4: Wait for Sender response
-        char response[BUFFER_SIZE];
-        printf("Waiting for Sender response...\n");
 
-        bytesRead = recv(clientSock, response, sizeof(response), 0);
+
+    // Step 4: Wait for Sender response
+    char response[BUFFER_SIZE];
+    printf("Waiting for Sender response...\n");
+
+    bytesRead = recv(clientSock, response, sizeof(response), 0);
 
         if (bytesRead > 0) {
-            if (strcmp(response, "resend") == 0) {
-                // Sender wants to resend the file, go back to Step 3
-                printf("Sender resending the file...\n");
-                close(clientSock);
-                continue;
-            } else if (strcmp(response, "exit") == 0) {
+             if (strcmp(response, "exit") == 0) {
                 // Sender sends exit message, go to Step 5
                 printf("Sender sent exit message. Exiting...\n");
                 break;
@@ -303,9 +308,9 @@ int main(int argc, char *argv[]) {
             printf("Connection closed by Sender. Exiting...\n");
             break;
         } else {
-            perror("Error receiving Sender response");
-            close(clientSock);
-            break;
+            //it sent file size agin so we need to set it in filesize
+            fileSize = strtoul(response, NULL, 10);
+            printf("File size received: %zu bytes.\n", fileSize);
         }
     }
 
@@ -320,7 +325,3 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-
-
-//TODO: Add specific congestion control algorithm determined by the argv[4]
-//TODO:
