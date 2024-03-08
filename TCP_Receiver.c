@@ -268,18 +268,20 @@ int main(int argc, char *argv[]) {
     while ((totalBytesReceived < fileSize)){
         //recive data
         bytesRead = recv(clientSock, buffer, sizeof(buffer), 0);
-        printf("Bytes received: %zu\n", bytesRead);
 
         if (bytesRead <= 0) {
-            perror("Error receiving file data");
+            perror("Error receiving file data dfdf");
             close(clientSock);
             close(sockfd);
             return 1;
         }
 
+        if (buffer[BUFFER_SIZE - 1] != '\0')
+            buffer[BUFFER_SIZE - 1] = '\0';
+
         totalBytesReceived += bytesRead;
-        printf("Total bytes received: %zu\n", totalBytesReceived);
     }
+        printf("Total bytes received: %zu\n", totalBytesReceived);
 
     //file received so we stop the timer
     printf("File received. Stopping timer...\n");
@@ -317,10 +319,14 @@ int main(int argc, char *argv[]) {
     // Step 5: Print out the times and average bandwidth
     printStatistics(list);
 
-    // (Steps 6 and 7 are not applicable in this implementation)
-
+    // Step 6: Close the connections
     close(sockfd);
     freeList(list);
+    close(clientSock);
+    printf("Server closed.\n");
+    printf("Connections closed.\n");
+
+
 
     return 0;
 }

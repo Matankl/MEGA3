@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
     char* Server_IP = argv[2];
     char *Message;
 
-    printf("Creating file with random data...\n");
+    printf("Creating random data...\n");
 
     // Create a file with random data
     Message = util_generate_random_data(FILE_SIZE_MB *1024 * 1024);
@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
 
 
     // Close the file and the socket
-    printf("Closing file and socket...\n");
+    printf("Closing conections...\n");
     // fclose(file);
     close(sockfd);
 
